@@ -1,0 +1,270 @@
+---
+title: "Summary Report of KMeans on Holiday Dataset"
+author: | 
+    | Team B :
+    |     Felicia, Cazer --------------A00225804
+    |     Anup, Kumar Singh ------A00258773
+    |     Achal, Gupta ---------------A00258772
+    |     Toro, Keng Yee Onn------A00214412
+date: "5 April 2019"
+output: html_document
+---
+#Data Set Information:
+This dataset was populated from destination reviews published by 249 reviewers of holidayiq.com till October 2014. Reviews falling in 6 categories among destinations across South India were considered and the count of reviews in each category for every reviewer (traveler) is captured. <br>
+
+#Attribute Information
+Attribute 1 : Unique user id <br>
+Attribute 2 : Number of reviews on stadiums, sports complex, etc. <br>
+Attribute 3 : Number of reviews on religious institutions <br>
+Attribute 4 : Number of reviews on beach, lake, river, etc. <br>
+Attribute 5 : Number of reviews on theatres, exhibitions, etc. <br>
+Attribute 6 : Number of reviews on malls, shopping places, etc. <br>
+Attribute 7 : Number of reviews on parks, picnic spots, etc.<br>
+
+
+```{r include=FALSE, warning = FALSE, message = FALSE}
+###IMPORTING LIBRARIES
+#Below code will import all the required libraries.
+#install.packages("NbClust")
+#install.packages("factoextra")
+#install.packages("psych")
+#installed.packages("ggplot2")
+#install.packages("dplyr")
+
+library(NbClust)
+library(dplyr)
+library(psych)
+library(factoextra) 
+library(ggplot2)
+```
+
+```{r include=FALSE, warning = FALSE}
+###DATA ACCQUISTION
+#Below code will import the data present in CSV format into R and store it in a Data Frame.
+Holiday_Data <- read.csv("Data/buddymove_holidayiq.csv")
+
+#View the data
+str(Holiday_Data,5)
+```
+
+```{r include=FALSE, warning = FALSE}
+###DATA CLEANING
+#Omit rows with Null values if any from the data
+Holiday_Data <- na.omit(Holiday_Data)
+```
+
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#### Creating subset of required columns
+#Create a subset without User Id column as for K means only numerical columns are chosen 
+Holiday_Data_num <- Holiday_Data[,-1]
+```
+
+
+#### Scaling data
+Visualizing data distribution before scaling using boxplot
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+boxplot(Holiday_Data_num, outline= FALSE)
+```
+</br>Since clustering algorithms including kmeans use distance-based measurements to determine the similarity between data points, it’s recommended to standardize the data to have a mean of zero and a standard deviation of one since almost always the features in any dataset would have different units of measurements.
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+Holiday_Data_num <- as.data.frame(lapply(Holiday_Data_num, scale))
+```
+Visualizing data distribution after scaling
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+boxplot(Holiday_Data_num, outline= FALSE)
+
+```
+</br>
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#verify mean = 0 and standard deviation = 1
+describe(Holiday_Data_num, fast=T)
+```
+
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#assigning background color and border line for graphs
+fill <- "gold1"
+line <- "goldenrod2"
+```
+
+### Descriptive Analysis
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#Duplicate data just for exploatory purpose, we will be creating some calculated columns and don't want to alter main dataset.
+Holiday_Data_Explore <- Holiday_Data
+```
+
+#### Top 5 active users based on total reviews given
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#Identify Total reviews of each user
+Holiday_Data_Explore$Total <- rowSums(Holiday_Data_Explore[,c("Sports","Religious","Nature", "Theatre", "Shopping","Picnic")]) 
+```
+
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#Sort data based on Total Number of reviews
+Holiday_Data_Explore <- Holiday_Data_Explore %>% 
+  arrange(Total)
+```
+Visualize Top 5 active users using bar graph
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+ggplot(data=tail(Holiday_Data_Explore,5), aes(x=User.Id, y=Total)) +
+  geom_bar(stat = "identity",fill = fill, colour = line) +
+  geom_text(aes(label=Total), vjust=1.6, color="black", size=3.5)+
+  theme_minimal() + 
+  ggtitle("Top 5 Active Users") + 
+  xlab("User Id") +
+  ylab("Total NUmber of Reviews")
+```
+
+#### Top 5 shopaholics users
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#Sort data based on Total Number of shopping reviews
+Holiday_Data_Explore <- Holiday_Data_Explore %>% 
+  arrange(Shopping)
+```
+Bar graph to repreent users who shop most
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+ggplot(data=tail(Holiday_Data_Explore,5), aes(x=User.Id, y=Total)) +
+  geom_bar(stat = "identity",fill = fill, colour = line) +
+  geom_text(aes(label=Total), vjust=1.6, color="black", size=3.5)+
+  theme_minimal() + 
+  ggtitle("Top 5 Shopaholics") + 
+  xlab("User Id") +
+  ylab("Total NUmber of Reviews")
+
+```
+
+Graph below will perform three analysis</br>
+1. Distribution of data for each feature or column shown using a histogram.</br>
+2. Correlation coefficients for each combination of feature</br>
+3. Scatterplot with fit line to visualize correlation</br>
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+pairs.panels(Holiday_Data_Explore[,c("Sports","Religious","Nature", "Theatre", "Shopping","Picnic")])
+```
+</br><b> Key Observations </b>
+1. Number of shopping reviews has a strong positive relation with number of relegious destination reviews.</br>
+2. Number of reviews by user for Shopping and Nature destinations shows weak negative corelation </br>
+3. Number of reviews by user for Relegious and Nature destinations shows weak negative corelation </br>
+4. Number of reviews by user for Nature and Theatre destinations shows weak positive corelation.</br>
+
+
+#### Most Reviewed Destinations
+
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#First get column wise sums for each destination type and then sort it in decreaseing order
+mostVoted <- order(colSums(Holiday_Data_Explore[,c("Sports","Religious","Nature", "Theatre", "Shopping","Picnic")]),decreasing=TRUE)
+```
+
+```{r include = FALSE, warning = FALSE, tidy = TRUE}
+#Get the name of the column from main data frame
+#Note <- +1 is done because in mostVoted we ignored first column i.e. User.Id
+colnames(Holiday_Data_Explore)[mostVoted[1]+1]
+```
+
+#### K Means Clustering
+##### Identify best value of K
+
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#create empty lists
+k <- list()
+betweenss <- list()
+totalss <- list()
+ratio <- list()
+```
+
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+#Elbow method to identify K value.
+#For loop will calculate ratio of between cluster sum of squares and Total within clusters sum of squares for clusters of k value 1 to 15
+for(i in 1:15){
+  k[[i]] <- kmeans(Holiday_Data_num, i, iter.max = 100)
+  betweenss[[i]] <- k[[i]]$betweenss
+  totalss[[i]] <- k[[i]]$tot.withinss
+  ratio[[i]] <- k[[i]]$betweenss/k[[i]]$totss
+}
+plot(1:15, ratio, type = 'b', ylab = 'Between SS / Total SS', xlab = "Clusters(k)")
+```
+
+```{r warning=FALSE, echo=FALSE, tidy=TRUE}
+#either 2 or 3 is the best value
+
+#Using nbclust package to verify same
+set.seed(1234)
+nc <- NbClust(Holiday_Data_num, min.nc=2, max.nc=15, method="kmeans")
+```
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+table(nc$Best.n[1,])
+```
+K= 2 and 3 both shows maximum values, geneally an odd value for k is preffered and hence k=3 is optimumu value.
+
+Let's make model using both values and evaluate.
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+cluster_up <- kmeans(Holiday_Data_num, 2, iter.max = 100, nstart = 25)
+```
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+fviz_cluster(cluster_up, data = Holiday_Data_num)
+```
+</br>
+Table of average of various columns for each cluster
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+aggregate(Holiday_Data[-1], by=list(cluster=cluster_up$cluster), mean)
+```
+Not much insight can be gathered from 2 clusters it just divide data into two categories user with less reviews on all groups i.e. new users and people with more reviews i.e outgoing or active users
+
+Lets crete cluster with more than 2 groups i.e. Building cluster with k=3
+```{r include=FALSE, warning = FALSE, tidy = TRUE}
+cluster_up <- kmeans(Holiday_Data_num, 3, iter.max = 100, nstart = 25)
+```
+
+Analysing the cluster
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+print(cluster_up)
+```
+
+Above output shows the sizes of three clusters formed along with the mean value for each column for each cluster.</br> 
+Then the output displays a vector of cluster value for each row.</br>
+Within cluster sum of squares is displayed for each of the three clusters.</br>
+
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+str(cluster_up)
+```
+Above output displays following information</br>
+<b>Cluster: </b>A vector of integers (from 1:k) indicating the cluster to which each point is allocated. </br>
+<b>Centers: </b>A matrix of cluster centers. </br>
+<b>totss: </b>The total sum of squares. </br>
+<b>withinss: </b>Vector of within-cluster sum of squares, one component per cluster. </br>
+<b>tot.withinss: </b>Total within-cluster sum of squares, i.e. sum(withinss). </br>
+<b>betweenss: </b>The between-cluster sum of squares, i.e. $totss-tot.withinss$. </br>
+<b>size: </b>The number of points in each cluster </br>
+
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+fviz_cluster(cluster_up, data = Holiday_Data_num)
+```
+</br>Creating table of average of various columns for each cluster
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+aggregate(Holiday_Data[-1], by=list(cluster=cluster_up$cluster), mean)
+```
+Below traits about useers can be assumed from the cluster information above.
+Cluster 3 - New Users with less reviews
+Cluster 2 - Young Artistic Crowd - More into Nature, Theatre
+Cluster 1 - Family oriented person - More into Religious institutions, shopping
+
+Visualizing clusters for various combination of scatterplots
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+plot(Holiday_Data_num, col=cluster_up$cluster)
+```
+
+Focusing on some major insights:
+Assuming less number of reviews by a user on a particular destination means user visit that destination group less number of times.
+People who visit more relegious institutions tends to do more shopping reviews as can be viewed from the plot below
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+plot(Holiday_Data[c("Shopping","Religious")], col=cluster_up$cluster, 
+     main = "Number of User reviews for Shopping vs Relegious destinations")
+```
+</br>People who are nature lovers do less shopping as can be viewed from the plot below
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+plot(Holiday_Data[c("Shopping","Nature")], col=cluster_up$cluster,
+     main = "Number of User reviews for Shopping vs Nature destinations")
+```
+</br>People who are nature lovers are more into Theatre destinations as can be viewed from the plot below
+```{r echo=FALSE, warning = FALSE, tidy = TRUE}
+plot(Holiday_Data[c("Theatre","Nature")], col=cluster_up$cluster,
+     main = "Number of User reviews for Theatre vs Nature destinations")
+```
