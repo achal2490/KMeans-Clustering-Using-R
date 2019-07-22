@@ -2,10 +2,7 @@
 title: "Summary Report of KMeans on Holiday Dataset"
 author: | 
     | Team B :
-    |     Felicia, Cazer --------------A00225804
-    |     Anup, Kumar Singh ------A00258773
     |     Achal, Gupta ---------------A00258772
-    |     Toro, Keng Yee Onn------A00214412
 date: "5 April 2019"
 output: html_document
 ---
